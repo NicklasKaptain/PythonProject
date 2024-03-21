@@ -1,0 +1,3 @@
+SourceListe = ["C:/Users/Nicklas/test"]
+DestinationListe = ["C:/Users/Nicklas/Backup"]
+SkipPath = ["C:/Users/Nicklas/Backup"]

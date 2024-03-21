@@ -1,0 +1,89 @@
+#Importer python lirbary's for at anvende moduler fra dem af
+import shutil
+import os
+import logging
+import hashlib
+#Importer selvlavet file config filen hvor man styre mapper til backup
+from ConfigFile import SourceListe, DestinationListe, SkipPath
+#Opretter config filen og gøre den skriv bare og gemmer den sammen med \mit project.py
+logging.basicConfig(filename="LogFileBackUp.log", level=logging.INFO, filemode='w')
+#Opretter funktion til at clear logfilen
+def clear_log_file():
+  with open('LogFileBackUp.log', 'w'):
+    pass
+#Opretter function til at faktiske køre backup og gemme filer og mapper
+def RunBackUp(SourceListe, DestinationListe):
+  #os path henter navnet på mappen, ellers ville den kun hente filerne.
+  last_name = os.path.basename(SourceListe)
+  #vi tilføjer mappens navn til vores destination hvor vi vil gemme den
+  DestinationListe = DestinationListe + "/" + last_name
+  #Tjekker om destination allerede findes
+  if os.path.exists(DestinationListe):
+    logging.info("'Folder Exists, checking for changes'") #tilføjer til log
+    #kalder function for at tjekke om der er ændringer i filerne og mapperne
+    CheckChanges(SourceListe, DestinationListe)
+  if not os.path.exists(DestinationListe):
+    #hvis filerne eller mapperne ikke findes tilføjes de
+    logging.info("'Folder doesn't exsist yet'") #tilføjer til log
+    shutil.copytree(SourceListe, DestinationListe, dirs_exist_ok=True) #dirs_exist_ok sikrer at dens destinations mappe findes.
+#Funktion for at tjekke om der er ændringer i hver eneste file og underfile i mapperne
+def CheckChanges(SourceListe, DestinationListe):
+  #OS.walk er en funktion som går under materiale igennem ALT igennem
+  #- Mappe
+  #- - Mappe 2
+  #- - - file 1
+  #- - - file 2
+  #- File 1
+  # Mappe 2 //Tjekker det hele igennem af dem alle hver eneste entry
+  for User, _, files in os.walk(SourceListe):
+    rel_path = os.path.relpath(User, SourceListe)
+    dest_dir = os.path.join(DestinationListe, rel_path)
+    #os relpath finder den "hele" sti, for en windows fx. "C:/User/dokumenter/../../EnMapper"
+    for filename in files:
+      #Vi tilføjer hver eneste mappe eller file til pathen som er den "kerne file" som vi tjekker med destinationsfilen om de findes
+      source_file = os.path.join(User, filename)
+      dest_file = os.path.join(dest_dir, filename)
+      logging.info(f"'Walking through: {rel_path} and {dest_file}'") #tilføjer til logging at den går over mapper og filer
+      #Hvis source filen findes (for at tjekke om der er tomme mappe og etc)
+      if os.path.isfile(source_file):
+        #try er et forsøg men det stopper ikke koden hvis det fejler
+        try:
+          with open(source_file, 'rb') as f:
+            source_hash = hashlib.sha256(f.read()).hexdigest()
+            #Den åbner source filen og tjekker dens hash værdi
+          with open(dest_file, 'rb') as f:
+            #Den åbner dest filen og tjekker dens hash værdi
+            dest_hash = hashlib.sha256(f.read()).hexdigest()
+            #Hvis de er ulige
+          if source_hash != dest_hash:
+            logging.info(f"'File changed (Content difference): {source_file}'")
+            #Tilføjes til logen at der er ændret filer og kopiere den over
+            shutil.copy2(source_file, dest_file)
+        #Except er de forventede fejltagelser der kan ske, not found, permission denied error codes her
+        except FileNotFoundError:
+          logging.info(f"'File missing in destination: {filename}'")
+        except PermissionError:
+          logging.info(f"'File permission prevents copying: {filename}'")
+      else:
+        logging.info(f"'Skipping subdirectory: {filename}'")
+# Skaber en variable med længden af elementer i listen af mapper/filer der skal backup's
+TimesToRun = len(SourceListe)
+for i in range(TimesToRun):
+  #for antallet af Elementer i "SourceListen" skal den køre
+  try:
+    #Tjekker om du kun vil backuppe 1 sted, den anvender den
+    if 1 == len(DestinationListe):
+      RunBackUp(SourceListe[i], DestinationListe[0])
+    #Den anvender den default path, du har angivet til en mappe hvis der er ulige antal af steder du skal kopiere fra og til
+    if 1 < len(DestinationListe):
+      RunBackUp(SourceListe[i], DestinationListe[0])
+    else:
+      RunBackUp(SourceListe[i], DestinationListe[i])
+  #untagelser igen, her dog med om den kan finde filen eller ej
+  except shutil.Error as E:
+    logging.info("'We get the Errorcode, that the file or folder exists'")
+  except FileNotFoundError as E:
+    #Fortæller dig specifikt at du ikke har en destinations mappe
+    logging.info("We get the Errorcode:", E)
+#Kalder funktion til at nulstille log filen, kan udkommentere for ikke at nulstille loggen.
+#clear_log_file()
